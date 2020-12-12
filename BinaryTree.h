@@ -33,7 +33,7 @@ class BinaryTree {
 
         friend class BinaryTree;
     protected:
-        Node* insert(const KeyType& key, const ValueType& value);
+        Node* insert(const KeyType& input_key, const ValueType& input_value);
         void setKey(const KeyType& new_key);
         void setParent(Node* new_parent);
         void setLeftChild(Node* new_child);
@@ -152,7 +152,6 @@ BinaryTree<ValueType, KeyType> &BinaryTree<ValueType, KeyType>::operator=(const 
     _cap = tmp._cap;
     tmp._cap = 0;
     return *this;
-    return *this;
 }
 
 template<typename ValueType, typename KeyType>
@@ -175,7 +174,7 @@ BinaryTree<ValueType, KeyType> &BinaryTree<ValueType, KeyType>::operator=(Binary
     _cap = moveCopy._cap;
     moveCopy._root = nullptr;
     moveCopy._cap = 0;
-    return *this;;
+    return *this;
 }
 
 template<typename ValueType, typename KeyType>
@@ -380,26 +379,26 @@ void BinaryTree<ValueType, KeyType>::Node::setValue(ValueType &val) {
 }
 
 template<typename ValueType, typename KeyType>
-typename BinaryTree<ValueType, KeyType>::Node *BinaryTree<ValueType, KeyType>::Node::insert(const KeyType &key, const ValueType &value) {
+typename BinaryTree<ValueType, KeyType>::Node *BinaryTree<ValueType, KeyType>::Node::insert(const KeyType &input_key, const ValueType &input_value) {
     Node* current_node = this;
-    if(current_node->key > key){
+    if(current_node->key > input_key){
         if(!current_node->child_left){
             current_node->child_left =
-                    new Node(key, value, current_node);
+                    new Node(input_key, input_value, current_node);
             return current_node->child_left;
         }
         else{
-            return current_node->child_left->insert(key, value);
+            return current_node->child_left->insert(input_key, input_value);
         }
     }
     else{
         if(!current_node->child_right){
             current_node->child_right =
-                    new Node(key, value, current_node);
+                    new Node(input_key, input_value, current_node);
             return current_node->child_right;
         }
         else{
-            return current_node->child_right->insert(key, value);
+            return current_node->child_right->insert(input_key, input_value);
         }
     }
 }
