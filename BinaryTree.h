@@ -3,27 +3,27 @@
 #include <iostream>
 #include <stack>
 #include <stdexcept>
+#include <cstddef>
 #ifndef SMART_POINTERS_BINARYTREE_H
 #define SMART_POINTERS_BINARYTREE_H
 template <typename ValueType, typename KeyType>
 class BinaryTree {
     class Node{
     public:
-        Node(const KeyType& key, const ValueType& value,
-             Node* parent = nullptr,
-             Node* child_left = nullptr, Node* child_right = nullptr);
+        Node(const KeyType& key, const ValueType& value);
+        Node()=default;
         ~Node()=default;
         KeyType getKey() const{
             return key;
         }
-        Node* getRightChild() {
+        std::shared_ptr<Node> getRightChild() {
             return child_right;
         }
-        Node* getLeftChild() {
+        std::shared_ptr<Node> getLeftChild() {
             return child_left;
         }
 
-        Node* getParent() {
+        std::weak_ptr<Node> getParent() {
             return parent;
         }
 
@@ -33,18 +33,17 @@ class BinaryTree {
 
         friend class BinaryTree;
     protected:
-        Node* insert(const KeyType& input_key, const ValueType& input_value);
         void setKey(const KeyType& new_key);
-        void setParent(Node* new_parent);
+        void setParent(const std::shared_ptr<Node>& new_parent);
         void setLeftChild(Node* new_child);
         void setRightChild(Node* new_child);
         void setValue(ValueType& val);
     private:
         KeyType key;
         ValueType value;
-        Node* parent;
-        Node* child_left;
-        Node* child_right;
+        std::weak_ptr<Node> parent;
+        std::shared_ptr<Node> child_left;
+        std::shared_ptr<Node> child_right;
     };
 public:
     BinaryTree();
@@ -52,7 +51,7 @@ public:
     BinaryTree& operator=(const BinaryTree& copy);
     BinaryTree(BinaryTree&& moveCopy) noexcept;
     BinaryTree& operator=(BinaryTree&& moveCopy) noexcept;
-    ~BinaryTree(){forceNodeDelete(_root);};
+    ~BinaryTree()=default;
     void add(const KeyType& key, const ValueType& value);
     void remove(const KeyType& key);
     ValueType find(const KeyType& key)const;
@@ -67,13 +66,13 @@ protected:
 //
     Node* getLastLeft(Node* root);//Получить самый левый узел
 private:
-    Node* _root;
+    std::shared_ptr<Node> _root;
     size_t _cap;
 };
 
 template<typename ValueType, typename KeyType>
 BinaryTree<ValueType, KeyType>::BinaryTree() {
-    _root = nullptr;
+    //_root = nullptr;
     _cap = 0;
 }
 
@@ -82,9 +81,9 @@ BinaryTree<ValueType, KeyType>::BinaryTree(const BinaryTree &copy) {
     if(!copy.getCapacity()){
         return;
     }
-    Node* current = copy._root;
+    std::shared_ptr<Node*> current = copy._root;
     BinaryTree<KeyType, ValueType> tmp;
-    std::stack<Node*> stack;
+    std::stack<std::shared_ptr<Node*>> stack;
     do{
         if(current->getRightChild() && current->getLeftChild()){
             stack.push(current);
@@ -104,7 +103,7 @@ BinaryTree<ValueType, KeyType>::BinaryTree(const BinaryTree &copy) {
                 stack.pop();
             }
             else{
-                current = nullptr;
+                current.reset();
             }
         }
     }while(current != copy._root && current);
@@ -122,9 +121,9 @@ BinaryTree<ValueType, KeyType> &BinaryTree<ValueType, KeyType>::operator=(const 
     if(!copy.getCapacity()){
         return *this;
     }
-    Node* current = copy._root;
+    std::shared_ptr<Node*> current = copy._root;
     BinaryTree<KeyType, ValueType> tmp;
-    std::stack<Node*> stack;
+    std::stack<std::shared_ptr<Node*>> stack;
     do{
         if(current->getRightChild() && current->getLeftChild()){
             stack.push(current);
@@ -144,7 +143,7 @@ BinaryTree<ValueType, KeyType> &BinaryTree<ValueType, KeyType>::operator=(const 
                 stack.pop();
             }
             else{
-                current = nullptr;
+                current.reset();
             }
         }
     }while(current != copy._root && current);
@@ -180,177 +179,198 @@ BinaryTree<ValueType, KeyType> &BinaryTree<ValueType, KeyType>::operator=(Binary
 template<typename ValueType, typename KeyType>
 void BinaryTree<ValueType, KeyType>::add(const KeyType &key, const ValueType &value) {
     if(_cap == 0){
-        _root = new Node(key, value);
+        _root.reset(new Node(key, value));
     }
     else{
-        _root->insert(key, value);
+        std::shared_ptr<Node> current_node = _root;
+        bool success = false;
+        while(!success){
+            if(current_node->getKey() > key){
+                if(!current_node->getLeftChild()){
+                    current_node->setLeftChild(new Node(key, value));
+                    current_node.get()->getLeftChild()->setParent(current_node);
+                    success = true;
+                }
+                else{
+                    current_node = current_node.get()->getLeftChild();
+                }
+            }
+            else{
+                if(current_node->getKey() > key){
+                    if(!current_node->child_right){
+                        current_node->setRightChild(new Node(key, value));
+                        current_node.get()->getRightChild()->setParent(current_node);
+                        success = true;
+                    }
+                    else{
+                        current_node = current_node.get()->getRightChild();
+                    }
+                }
+            }
+        }
     }
     _cap += 1;
 }
 
-template<typename ValueType, typename KeyType>
-void BinaryTree<ValueType, KeyType>::remove(const KeyType &key) {
-    Node* node = find(key, _root);
-    if(node){
-        Node* free = deleteNode(node);
-        delete(free);
-        _cap -= 1;
-    }
-    else{
-        throw std::runtime_error("No object with such key\n");
-    }
-}
+//template<typename ValueType, typename KeyType>
+//void BinaryTree<ValueType, KeyType>::remove(const KeyType &key) {
+//    Node* node = find(key, _root);
+//    if(node){
+//        Node* free = deleteNode(node);
+//        delete(free);
+//        _cap -= 1;
+//    }
+//    else{
+//        throw std::runtime_error("No object with such key\n");
+//    }
+//}
+
+//template<typename ValueType, typename KeyType>
+//typename BinaryTree<ValueType, KeyType>::Node
+//*BinaryTree<ValueType, KeyType>::deleteNode(BinaryTree::Node *node) {
+//    Node* result = nullptr;
+//    if(!node){
+//        return result;
+//    }
+//    Node* current_node = _root;
+//
+//    if(current_node->getKey() > node->getKey()){
+//        result = deleteNode(node->getRightChild());
+//    }
+//    if(current_node->getKey() < node->getKey()){
+//        result = deleteNode(node->getLeftChild());
+//    }
+//    else if(current_node->getKey() == node->getKey()){
+//        if(!current_node->getRightChild() && !current_node->getLeftChild()){
+//            result = current_node;
+//            if(result->getParent()->getRightChild() == result){
+//                result->getParent()->setRightChild(nullptr);
+//            }
+//            else if(result->getParent()->getLeftChild() == result){
+//                    result->getParent()->setLeftChild(nullptr);
+//            }
+//            result->setParent(nullptr);
+//        }
+//        else if(!current_node->getLeftChild()){
+//            Node* right = current_node->getRightChild();
+//            current_node->setKey(right->getKey());
+//            current_node->setLeftChild(right->getLeftChild());
+//            current_node->setRightChild(right->getRightChild());
+//            right->setRightChild(nullptr);
+//            right->setLeftChild(nullptr);
+//            right->setParent(nullptr);
+//            if(current_node->getRightChild()){
+//                current_node->getRightChild()->setParent(current_node);
+//            }
+//            if(current_node->getLeftChild()){
+//                current_node->getLeftChild()->setParent(current_node);
+//            }
+//            result = right;
+//        }
+//        else if(!current_node->getRightChild()){
+//            Node* left = current_node->getLeftChild();
+//            current_node->setKey(left->getKey());
+//            current_node->setLeftChild(left->getLeftChild());
+//            current_node->setRightChild(left->getRightChild());
+//            left->setRightChild(nullptr);
+//            left->setLeftChild(nullptr);
+//            left->setParent(nullptr);
+//            if(current_node->getRightChild()){
+//                current_node->getRightChild()->setParent(current_node);
+//            }
+//            if(current_node->getLeftChild()){
+//                current_node->getLeftChild()->setParent(current_node);
+//            }
+//            result = left;
+//        }
+//        else{
+//            if(!current_node->getRightChild()->getLeftChild()){
+//                current_node->setKey(current_node->getRightChild()->getKey());
+//                current_node->setValue(current_node->getRightChild()->getValue());
+//                result = current_node->getRightChild();
+//                current_node->setRightChild(result->getRightChild());
+//                result->setRightChild(nullptr);
+//                current_node->getRightChild()->setParent(current_node);
+//            }
+//            else{
+//                result = getLastLeft(current_node->getRightChild());
+//                current_node->setValue(result->getValue());
+//                current_node->setKey(result->getKey());
+//                result = deleteNode(result);
+//            }
+//        }
+//    }
+//    return result;
+//}
+
+//template<typename ValueType, typename KeyType>
+//typename BinaryTree<ValueType, KeyType>::Node *BinaryTree<ValueType, KeyType>::getLastLeft(BinaryTree::Node *root) {
+//    Node* node = root;
+//    if(!node)
+//        return nullptr;
+//    while(node->getLeftChild()){
+//        node = node->getLeftChild();
+//    }
+//    return node;
+//}
+
+//template<typename ValueType, typename KeyType>
+//typename BinaryTree<ValueType, KeyType>::Node
+//*BinaryTree<ValueType, KeyType>::find(const KeyType &key,
+//                                      BinaryTree::Node *root)const {
+//    Node* node = root;
+//    while(node){
+//        if(key < node->getKey()){
+//            node = node->getLeftChild();
+//        }
+//        else if(key > node->getKey()){
+//            node = node->getRightChild();
+//        }
+//        else{
+//            return node;
+//        }
+//    }
+//    return node;
+//}
+//
+//template<typename ValueType, typename KeyType>
+//ValueType BinaryTree<ValueType, KeyType>::find(const KeyType &key) const {
+//    Node* result_node = find(key, _root);
+//    return result_node? result_node->getValue(): NULL;
+//}
+
+//template<typename ValueType, typename KeyType>
+//void BinaryTree<ValueType, KeyType>::forceNodeDelete(BinaryTree::Node *root) {
+//    if(!_cap){
+//        return;
+//    }
+//    Node* node = root;
+//    Node* leaf = nullptr;
+//    while(node){
+//        if(node->getLeftChild()){
+//            node = node->getLeftChild();
+//        }
+//        else if(node->getRightChild()){
+//            node = node->getRightChild();
+//        }
+//        else{
+//            leaf = node;
+//            node = node->getParent()? node->getParent(): nullptr;
+//            if(node && node->getRightChild() && node->getRightChild() == leaf){
+//                node->setRightChild(nullptr);
+//            }
+//            if(node && node->getLeftChild() && node->getLeftChild() == leaf){
+//                node->setLeftChild(nullptr);
+//            }
+//            delete leaf;
+//        }
+//    }
+//}
 
 template<typename ValueType, typename KeyType>
-typename BinaryTree<ValueType, KeyType>::Node
-*BinaryTree<ValueType, KeyType>::deleteNode(BinaryTree::Node *node) {
-    Node* result = nullptr;
-    if(!node){
-        return result;
-    }
-    Node* current_node = _root;
-
-    if(current_node->getKey() > node->getKey()){
-        result = deleteNode(node->getRightChild());
-    }
-    if(current_node->getKey() < node->getKey()){
-        result = deleteNode(node->getLeftChild());
-    }
-    else if(current_node->getKey() == node->getKey()){
-        if(!current_node->getRightChild() && !current_node->getLeftChild()){
-            result = current_node;
-            if(result->getParent()->getRightChild() == result){
-                result->getParent()->setRightChild(nullptr);
-            }
-            else if(result->getParent()->getLeftChild() == result){
-                    result->getParent()->setLeftChild(nullptr);
-            }
-            result->setParent(nullptr);
-        }
-        else if(!current_node->getLeftChild()){
-            Node* right = current_node->getRightChild();
-            current_node->setKey(right->getKey());
-            current_node->setLeftChild(right->getLeftChild());
-            current_node->setRightChild(right->getRightChild());
-            right->setRightChild(nullptr);
-            right->setLeftChild(nullptr);
-            right->setParent(nullptr);
-            if(current_node->getRightChild()){
-                current_node->getRightChild()->setParent(current_node);
-            }
-            if(current_node->getLeftChild()){
-                current_node->getLeftChild()->setParent(current_node);
-            }
-            result = right;
-        }
-        else if(!current_node->getRightChild()){
-            Node* left = current_node->getLeftChild();
-            current_node->setKey(left->getKey());
-            current_node->setLeftChild(left->getLeftChild());
-            current_node->setRightChild(left->getRightChild());
-            left->setRightChild(nullptr);
-            left->setLeftChild(nullptr);
-            left->setParent(nullptr);
-            if(current_node->getRightChild()){
-                current_node->getRightChild()->setParent(current_node);
-            }
-            if(current_node->getLeftChild()){
-                current_node->getLeftChild()->setParent(current_node);
-            }
-            result = left;
-        }
-        else{
-            if(!current_node->getRightChild()->getLeftChild()){
-                current_node->setKey(current_node->getRightChild()->getKey());
-                current_node->setValue(current_node->getRightChild()->getValue());
-                result = current_node->getRightChild();
-                current_node->setRightChild(result->getRightChild());
-                result->setRightChild(nullptr);
-                current_node->getRightChild()->setParent(current_node);
-            }
-            else{
-                result = getLastLeft(current_node->getRightChild());
-                current_node->setValue(result->getValue());
-                current_node->setKey(result->getKey());
-                result = deleteNode(result);
-            }
-        }
-    }
-    return result;
-}
-
-template<typename ValueType, typename KeyType>
-typename BinaryTree<ValueType, KeyType>::Node *BinaryTree<ValueType, KeyType>::getLastLeft(BinaryTree::Node *root) {
-    Node* node = root;
-    if(!node)
-        return nullptr;
-    while(node->getLeftChild()){
-        node = node->getLeftChild();
-    }
-    return node;
-}
-
-template<typename ValueType, typename KeyType>
-typename BinaryTree<ValueType, KeyType>::Node
-*BinaryTree<ValueType, KeyType>::find(const KeyType &key,
-                                      BinaryTree::Node *root)const {
-    Node* node = root;
-    while(node){
-        if(key < node->getKey()){
-            node = node->getLeftChild();
-        }
-        else if(key > node->getKey()){
-            node = node->getRightChild();
-        }
-        else{
-            return node;
-        }
-    }
-    return node;
-}
-
-template<typename ValueType, typename KeyType>
-ValueType BinaryTree<ValueType, KeyType>::find(const KeyType &key) const {
-    Node* result_node = find(key, _root);
-    return result_node? result_node->getValue(): NULL;
-}
-
-template<typename ValueType, typename KeyType>
-void BinaryTree<ValueType, KeyType>::forceNodeDelete(BinaryTree::Node *root) {
-    if(!_cap){
-        return;
-    }
-    Node* node = root;
-    Node* leaf = nullptr;
-    while(node){
-        if(node->getLeftChild()){
-            node = node->getLeftChild();
-        }
-        else if(node->getRightChild()){
-            node = node->getRightChild();
-        }
-        else{
-            leaf = node;
-            node = node->getParent()? node->getParent(): nullptr;
-            if(node && node->getRightChild() && node->getRightChild() == leaf){
-                node->setRightChild(nullptr);
-            }
-            if(node && node->getLeftChild() && node->getLeftChild() == leaf){
-                node->setLeftChild(nullptr);
-            }
-            delete leaf;
-        }
-    }
-}
-
-template<typename ValueType, typename KeyType>
-BinaryTree<ValueType, KeyType>::Node::Node(const KeyType &key, const ValueType &value, Node* parent,
-                                           Node* child_left, Node* child_right) {
+BinaryTree<ValueType, KeyType>::Node::Node(const KeyType &key, const ValueType &value) {
     this->key = key;
     this->value = value;
-    this->child_left = child_left;
-    this->child_right = child_right;
-    this->parent = parent;
 }
 
 template<typename ValueType, typename KeyType>
@@ -359,48 +379,23 @@ void BinaryTree<ValueType, KeyType>::Node::setKey(const KeyType &new_key) {
 }
 
 template<typename ValueType, typename KeyType>
-void BinaryTree<ValueType, KeyType>::Node::setParent(BinaryTree::Node *new_parent) {
+void BinaryTree<ValueType, KeyType>::Node::setParent(const std::shared_ptr<Node>& new_parent) {
     parent = new_parent;
 }
 
 template<typename ValueType, typename KeyType>
-void BinaryTree<ValueType, KeyType>::Node::setLeftChild(BinaryTree::Node *new_child) {
-    child_left = new_child;
+void BinaryTree<ValueType, KeyType>::Node::setLeftChild(Node *new_child) {
+    child_left.reset(new_child);
 }
 
 template<typename ValueType, typename KeyType>
-void BinaryTree<ValueType, KeyType>::Node::setRightChild(BinaryTree::Node *new_child) {
-    child_right = new_child;
+void BinaryTree<ValueType, KeyType>::Node::setRightChild(Node *new_child) {
+    child_right.reset(new_child);
 }
 
 template<typename ValueType, typename KeyType>
 void BinaryTree<ValueType, KeyType>::Node::setValue(ValueType &val) {
     value = val;
-}
-
-template<typename ValueType, typename KeyType>
-typename BinaryTree<ValueType, KeyType>::Node *BinaryTree<ValueType, KeyType>::Node::insert(const KeyType &input_key, const ValueType &input_value) {
-    Node* current_node = this;
-    if(current_node->key > input_key){
-        if(!current_node->child_left){
-            current_node->child_left =
-                    new Node(input_key, input_value, current_node);
-            return current_node->child_left;
-        }
-        else{
-            return current_node->child_left->insert(input_key, input_value);
-        }
-    }
-    else{
-        if(!current_node->child_right){
-            current_node->child_right =
-                    new Node(input_key, input_value, current_node);
-            return current_node->child_right;
-        }
-        else{
-            return current_node->child_right->insert(input_key, input_value);
-        }
-    }
 }
 
 
